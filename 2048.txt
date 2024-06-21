@@ -1,0 +1,350 @@
+import javafx.application.*;
+import javafx.scene.control.*;
+import javafx.scene.*;
+import javafx.scene.paint.*;
+import javafx.scene.shape.*;
+import javafx.scene.layout.*;
+import javafx.stage.*;
+import javafx.event.*;
+import javafx.scene.input.*;
+import javafx.scene.text.*;
+import javafx.geometry.*;
+import java.util.*;
+import java.io.*;
+
+/** Creates the GUI interface for the 2048 game */
+public class Gui2048 extends Application {
+    private String outputBoard; // The filename for where to save the Board
+    private Board board = new Board(4, new Random()); // The 2048 Game Board
+
+    private static final int TILE_WIDTH = 106;
+
+    private static final int TEXT_SIZE_LOW = 55; // Low value tiles (2,4,8,etc)
+    private static final int TEXT_SIZE_MID = 45; // Mid value tiles (128, 256, 512)
+    private static final int TEXT_SIZE_HIGH = 35; // High value tiles (1024, 2048, Higher)
+
+    // Fill colors for each of the Tile values
+    private static final Color COLOR_EMPTY = Color.rgb(190, 227, 171, 0.35);
+    private static final Color COLOR_2 = Color.rgb(220, 230, 167);
+    private static final Color COLOR_4 = Color.rgb(248, 232, 163);
+    private static final Color COLOR_8 = Color.rgb(249, 214, 151);
+    private static final Color COLOR_16 = Color.rgb(250, 199, 141);
+    private static final Color COLOR_32 = Color.rgb(236, 157, 117);
+    private static final Color COLOR_64 = Color.rgb(224, 119, 97);
+    private static final Color COLOR_128 = Color.rgb(168, 83, 75);
+    private static final Color COLOR_256 = Color.rgb(112, 47, 52);
+    private static final Color COLOR_512 = Color.rgb(97, 78, 77);
+    private static final Color COLOR_1024 = Color.rgb(90, 94, 90);
+    private static final Color COLOR_2048 = Color.rgb(82, 112, 104);
+    private static final Color COLOR_OTHER = Color.rgb(70, 137, 124);
+    private static final Color COLOR_GAME_OVER = Color.rgb(190, 227, 171, 0.73);
+
+    private static final Color COLOR_VALUE_LIGHT = Color.rgb(249, 246, 242); // For tiles >= 8
+    private static final Color COLOR_VALUE_DARK = Color.rgb(119, 110, 101); // For tiles < 8
+
+    private GridPane pane;
+
+    // fonts
+    private static final Font FONT_SMALL = Font.font("Times New Roman", FontWeight.BOLD, TEXT_SIZE_LOW);
+    private static final Font FONT_MID = Font.font("Times New Roman", FontWeight.BOLD, TEXT_SIZE_MID);
+    private static final Font FONT_LARGE = Font.font("Times New Roman", FontWeight.BOLD, TEXT_SIZE_HIGH);
+    private Text score = new Text(board.getScore() + ""); // score text
+    int boardGrid[][]; // back end grid
+    int gridSize; // size of grid
+    private Rectangle[][] tileMatrix; // rectangle matrix
+    private Text[][] textMatrix; // text matrix
+
+    /**
+     * Starts the 2048 game
+     * 
+     * @param primaryStage Stage for the game
+     */
+    @Override
+    public void start(Stage primaryStage) {
+        // Process Arguments and Initialize the Game Board
+        processArgs(getParameters().getRaw().toArray(new String[0]));
+
+        // Create the pane that will hold all of the visual objects
+        pane = new GridPane();
+        pane.setAlignment(Pos.CENTER);
+        pane.setPadding(new Insets(11.5, 12.5, 13.5, 14.5));
+        // set the background color
+        pane.setStyle("-fx-background-color: rgb(87, 203, 171)");
+        // Set the spacing between the Tiles
+        pane.setHgap(15);
+        pane.setVgap(15);
+
+        boardGrid = board.getGrid();
+        gridSize = board.GRID_SIZE;
+        outputBoard = "saveFile";
+
+        // set column constraints
+        for (int i = 0; i < gridSize; i++) {
+            pane.getColumnConstraints().add(new ColumnConstraints(100));
+            pane.getRowConstraints().add(new RowConstraints(100));
+        }
+
+        // create matrices to store tiles and text
+        tileMatrix = new Rectangle[gridSize + 1][gridSize];
+        textMatrix = new Text[gridSize + 1][gridSize];
+
+        // constructs the initial 2048 grid
+        this.makeGrid();
+        this.updateGrid();
+
+        // create and shows the scene
+        Scene scene = new Scene(pane);
+        primaryStage.setTitle("Gui2048");
+        primaryStage.setScene(scene);
+        primaryStage.show();
+
+        // handle key pressed events
+        // arrow keys for movement and s for saving
+        scene.setOnKeyPressed(new myKeyHandler());
+    }
+
+    /**
+     * Creates the empty initial 2048 grid based on the grid size. Note that in
+     * setting up the GUI grid, the title takes up the first row. The GUI tile grid
+     * indices do not correspond exactly to its board counterpart; each GUI tile
+     * has a row value one more than its board tile. This method only initialized
+     * all the board variables and objects; it must be updated to include random
+     * tiles.
+     */
+    private void makeGrid() {
+        // create the 2048 title
+        Text title = new Text("2048");
+        title.setFont(FONT_SMALL);
+        title.setFill(COLOR_VALUE_DARK);
+        GridPane.setHalignment(title, HPos.CENTER);
+        pane.add(title, 0, 0, 2, 1);
+
+        // set up score
+        Text scoreTitle = new Text("Score:");
+        scoreTitle.setFont(FONT_MID);
+        scoreTitle.setFill(COLOR_VALUE_DARK);
+        GridPane.setHalignment(scoreTitle, HPos.CENTER);
+        pane.add(scoreTitle, 1, 0, 3, 1);
+
+        score.setFont(FONT_MID);
+        score.setFill(COLOR_VALUE_DARK);
+        pane.add(score, 3, 0);
+
+        // set up tiles
+        // 2-D arrays are [row][column]
+        // GridPanes are [column][row]
+        for (int i = 1; i < gridSize + 1; i++) {
+            for (int j = 0; j < gridSize; j++) {
+                // create an empty 100 x 100 square tile
+                Rectangle square = new Rectangle();
+                square.setWidth(100);
+                square.setHeight(100);
+                square.setFill(COLOR_EMPTY);
+                // store square in tileMatrix
+                tileMatrix[i][j] = square;
+
+                // set up text
+                Text someText = new Text();
+                // store text in textMatrix
+                textMatrix[i][j] = someText;
+
+                // add tiles to the pane
+                GridPane.setHalignment(someText, HPos.CENTER);
+                pane.add(square, j, i);
+                pane.add(someText, j, i);
+            }
+        }
+    }
+
+    /**
+     * Updates the grid, iterating through every element and updating each GUI tile
+     * to correspond to its board element.
+     */
+    private void updateGrid() {
+        int num = 0; // current tile number
+
+        // iterate through the board grid
+        for (int row = 0; row < gridSize; row++) {
+            for (int column = 0; column < gridSize; column++) {
+                // get the tile's number
+                num = boardGrid[row][column];
+                if (num == 0) { // if the number is zero
+                    tileMatrix[row + 1][column].setFill(COLOR_EMPTY); // empty color
+                    textMatrix[row + 1][column].setText(""); // set the text to empty
+                } else {
+                    // update the tile color and text
+                    tileMatrix[row + 1][column].setFill(getColor(num));
+                    textMatrix[row + 1][column].setText(Integer.toString(num));
+                    textMatrix[row + 1][column].setFont(getFont(num));
+                    textMatrix[row + 1][column].setFill(getFontColor(num));
+                }
+            }
+        }
+
+        // updates the score
+        score.setText(board.getScore() + "");
+
+        // adds the game over layover when the game is over
+        if (board.isGameOver()) {
+            Rectangle rect = new Rectangle();
+            rect.setWidth(120 * gridSize); // matches grid width
+            rect.setHeight(120 * gridSize); // matches grid height
+            rect.setFill(COLOR_GAME_OVER); // sets the overlay color
+            Text gameOver = new Text("Game Over!"); // displays the game over text
+            gameOver.setFill(COLOR_VALUE_DARK); // sets the color to dark
+            gameOver.setFont(FONT_MID); // sets the font
+            pane.add(rect, 0, 1, gridSize, gridSize); // adds the overlay to the grid
+            GridPane.setHalignment(gameOver, HPos.CENTER); // centers the game over text
+            pane.add(gameOver, 0, 1, gridSize, gridSize);
+        }
+    }
+
+    /**
+     * Gets the appropriate font color for the tile's number
+     * 
+     * @param num The tile's number
+     * @return The appropriate font color for the tile's number
+     */
+    private Color getFontColor(int num) {
+        if (num < 8)
+            return COLOR_VALUE_DARK;
+        else
+            return COLOR_VALUE_LIGHT;
+    }
+
+    /**
+     * Gets the appropriate font for the tile's number
+     * 
+     * @param num The tile's number
+     * @return The appropriate font for the tile's number
+     */
+    private Font getFont(int num) {
+        if (num < 128)
+            return FONT_SMALL;
+        else if (num < 1024)
+            return FONT_MID;
+        else
+            return FONT_LARGE;
+    }
+
+    /**
+     * Gets the appropriate color for the tile's number
+     * 
+     * @param num The tile's number
+     * @return The appropriate color for the tile's number
+     */
+    private Color getColor(int num) {
+        switch (num) {
+            case 2:
+                return COLOR_2;
+            case 4:
+                return COLOR_4;
+            case 8:
+                return COLOR_8;
+            case 16:
+                return COLOR_16;
+            case 32:
+                return COLOR_32;
+            case 64:
+                return COLOR_64;
+            case 128:
+                return COLOR_128;
+            case 256:
+                return COLOR_256;
+            case 512:
+                return COLOR_512;
+            case 1024:
+                return COLOR_1024;
+            case 2048:
+                return COLOR_2048;
+            default:
+                return COLOR_OTHER;
+        }
+    }
+
+    /**
+     * This method processes the command line arguments, specifically, the filename
+     * of a saved board to load.
+     * 
+     * @param args The command line arguments
+     */
+    private void processArgs(String[] args) {
+        String filename = null;
+
+        // check if there are any arguments
+        if (args.length > 0) {
+            // set the filename to the first argument
+            filename = args[0];
+
+            // check if there are more than one arguments
+            if (args.length > 1) {
+                // set the output board to the second argument
+                outputBoard = args[1];
+            }
+
+            // load the board from the filename
+            try {
+                board = new Board(filename, new Random());
+            } catch (Exception e) {
+                System.out.println(e.getClass().getName() + ": " + e.getMessage());
+                System.out.println("Usage: Gui2048 [<input board> <output board>]");
+                System.exit(1);
+            }
+        }
+    }
+
+    /**
+     * Main method
+     * 
+     * @param args Command line arguments
+     */
+    public static void main(String[] args) {
+        launch(args);
+    }
+
+    /**
+     * Handles the arrow key and 's' key inputs.
+     */
+    private class myKeyHandler implements EventHandler<KeyEvent> {
+        /**
+         * Handles the key events.
+         * 
+         * @param e The key event
+         */
+        @Override
+        public void handle(KeyEvent e) {
+            KeyCode keyCode = e.getCode();
+            Direction direction = null;
+            switch (keyCode) {
+                case UP:
+                    direction = Direction.UP;
+                    break;
+                case DOWN:
+                    direction = Direction.DOWN;
+                    break;
+                case LEFT:
+                    direction = Direction.LEFT;
+                    break;
+                case RIGHT:
+                    direction = Direction.RIGHT;
+                    break;
+                case S:
+                    try {
+                        board.saveBoard(outputBoard);
+                    } catch (IOException ex) {
+                        System.out.println("Error saving board to file: " + ex.getMessage());
+                    }
+                    return;
+                default:
+                    return;
+            }
+
+            // Make a move if possible
+            if (direction != null && board.canMove(direction)) {
+                board.move(direction);
+                board.addRandomTile();
+                updateGrid();
+            }
+        }
+    }
+}
